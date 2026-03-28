@@ -30,6 +30,11 @@ jobs:
           sed -i "s/applicationId \"io.heckel.ntfy\"/applicationId \"${{ secrets.MY_FORK_APPLICATION_ID }}\"/g" app/build.gradle
           echo "Application ID updated to ${{ secrets.MY_FORK_APPLICATION_ID }}"
 
+      - name: Remove .debug Application ID Suffix
+        run: |
+          sed -i 's/applicationIdSuffix "\.debug"//g' app/build.gradle
+          echo "Removed applicationIdSuffix '.debug' for debug builds"
+          
       # 官方文档建议：修改 values.xml 中的默认服务器地址
       - name: Modify Default Base URL
         run: |
