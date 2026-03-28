@@ -1,0 +1,51 @@
+name: Build Custom ntfy (FCM Enabled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 官方文档要求：放入 Firebase 配置文件
+      - name: Inject Google Services JSON
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+          echo "Successfully created google-services.json"
+
+      # 修改包名，避免与官方包名冲突导致无法收到 FCM
+      - name: Modify Application ID
+        run: |
+          sed -i "s/applicationId \"io.heckel.ntfy\"/applicationId \"${{ secrets.MY_FORK_APPLICATION_ID }}\"/g" app/build.gradle
+          echo "Application ID updated to ${{ secrets.MY_FORK_APPLICATION_ID }}"
+
+      # 官方文档建议：修改 values.xml 中的默认服务器地址
+      - name: Modify Default Base URL
+        run: |
+          # 使用 | 作为分隔符，替换默认的 https://ntfy.sh 为你的私有域名
+          sed -i "s|https://ntfy.sh|${{ secrets.APP_BASE_URL }}|g" app/src/main/res/values/values.xml
+          echo "Default Base URL updated to ${{ secrets.APP_BASE_URL }}"
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # 采用 Play Debug 编译，省去配置签名的麻烦，直接可安装
+      - name: Build Play Debug APK
+        run: ./gradlew assemblePlayDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-custom-ntfy-app
+          path: app/build/outputs/apk/play/debug/app-play-debug.apk
