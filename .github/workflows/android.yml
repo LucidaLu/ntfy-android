@@ -29,11 +29,6 @@ jobs:
         run: |
           sed -i "s/applicationId \"io.heckel.ntfy\"/applicationId \"${{ secrets.MY_FORK_APPLICATION_ID }}\"/g" app/build.gradle
           echo "Application ID updated to ${{ secrets.MY_FORK_APPLICATION_ID }}"
-
-      - name: Remove .debug Application ID Suffix
-        run: |
-          sed -i 's/applicationIdSuffix "\.debug"//g' app/build.gradle
-          echo "Removed applicationIdSuffix '.debug' for debug builds"
           
       # 官方文档建议：修改 values.xml 中的默认服务器地址
       - name: Modify Default Base URL
@@ -45,12 +40,23 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      # 采用 Play Debug 编译，省去配置签名的麻烦，直接可安装
-      - name: Build Play Debug APK
-        run: ./gradlew assemblePlayDebug
+# 1. 把刚才存在 GitHub 的那一长串文本，重新变回 my-release-key.jks 文件
+      - name: Decode Keystore
+        env:
+          ENCODED_STRING: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo $ENCODED_STRING | base64 -di > app/my-release-key.jks
 
-      - name: Upload APK
+      # 2. 调用打包命令，同时把 GitHub 里的密码悄悄传给它
+      - name: Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assemblePlayRelease -Pandroid.injected.signing.store.file=my-release-key.jks -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+
+      - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: my-custom-ntfy-app
-          path: app/build/outputs/apk/play/debug/app-play-debug.apk
+          name: app-release # 建议把下载文件的名字也改成 release，方便区分
+          path: app/build/outputs/apk/play/release/*.apk # 替换为你实际的 release 路径
